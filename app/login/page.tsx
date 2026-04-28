@@ -33,7 +33,7 @@ export default async function LoginPage({
         </Link>
         <h1 className="text-3xl font-bold tracking-tight">Sign in</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          New here? Your first 3 thumbnails are on us.
+          New here? Your first 5 thumbnails are on us.
         </p>
         <div className="mt-8">
           <LoginForm next={params.next} />

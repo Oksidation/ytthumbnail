@@ -85,7 +85,7 @@ export function PricingTable() {
         </div>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          New accounts get <span className="text-foreground">3 free credits</span> on signup. No card required.
+          New accounts get <span className="text-foreground">5 free thumbnails</span> on signup. No card required.
         </p>
       </Container>
     </section>

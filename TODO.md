@@ -16,7 +16,7 @@ Tracks what's left to take the prototype from "code on disk" to "I can generate 
 - [ ] **Run dev server.** `npm run dev` → open http://localhost:3000
 - [ ] **Test the flow:**
   1. Sign up via magic link (check inbox; Supabase sends from a noreply address)
-  2. On `/dashboard` you should see 3 free credits
+  2. On `/dashboard` you should see 5 free credits
   3. Click "New thumbnail" → enter a title → upload a face photo (optional) → Generate
   4. Wait 30–60s for the result page to populate
   5. Hit Download to grab the PNG

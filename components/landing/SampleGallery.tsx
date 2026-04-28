@@ -1,13 +1,12 @@
 import { Container } from "@/components/site/Container";
-import { ThumbnailCard } from "./ThumbnailCard";
 
-const SAMPLES: Array<Parameters<typeof ThumbnailCard>[0]> = [
-  { title: "I built a passive income empire", badge: "Vlog", fromColor: "#fb923c", toColor: "#ef4444" },
-  { title: "Why YouTubers are quitting", badge: "Podcast", fromColor: "#1e1b4b", toColor: "#7c3aed" },
-  { title: "I survived 24h with $1", badge: "Challenge", fromColor: "#dc2626", toColor: "#facc15", align: "center" },
-  { title: "MacBook M5 review", badge: "Tech", fromColor: "#0f172a", toColor: "#22d3ee", align: "right" },
-  { title: "Don't buy this drone", badge: "Tutorial", fromColor: "#15803d", toColor: "#fde047" },
-  { title: "Speedrun world record", badge: "Gaming", fromColor: "#7c3aed", toColor: "#ec4899", align: "right" },
+const SAMPLES: Array<{ src: string; alt: string }> = [
+  { src: "/samples/thumb7.jpg", alt: "Example thumbnail 1" },
+  { src: "/samples/thumb8.jpg", alt: "Example thumbnail 2" },
+  { src: "/samples/thumb9.jpg", alt: "Example thumbnail 3" },
+  { src: "/samples/thumb10.jpg", alt: "Example thumbnail 4" },
+  { src: "/samples/thumb11.jpg", alt: "Example thumbnail 5" },
+  { src: "/samples/thumb12.jpg", alt: "Example thumbnail 6" },
 ];
 
 export function SampleGallery() {
@@ -29,7 +28,14 @@ export function SampleGallery() {
 
         <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {SAMPLES.map((s) => (
-            <ThumbnailCard key={s.title} {...s} />
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={s.src}
+              src={s.src}
+              alt={s.alt}
+              className="aspect-video w-full overflow-hidden rounded-xl border border-border/60 object-cover"
+              loading="lazy"
+            />
           ))}
         </div>
       </Container>

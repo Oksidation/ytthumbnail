@@ -1,6 +1,14 @@
 import Link from "next/link";
 import { Container } from "@/components/site/Container";
-import { ThumbnailCard } from "./ThumbnailCard";
+
+const HERO_THUMBS: Array<{ src: string; alt: string }> = [
+  { src: "/samples/thumb1.jpg", alt: "Sample thumbnail 1" },
+  { src: "/samples/thumb2.png", alt: "Sample thumbnail 2" },
+  { src: "/samples/thumb3.jpg", alt: "Sample thumbnail 3" },
+  { src: "/samples/thumb4.jpg", alt: "Sample thumbnail 4" },
+  { src: "/samples/thumb5.jpg", alt: "Sample thumbnail 5" },
+  { src: "/samples/thumb6.jpg", alt: "Sample thumbnail 6" },
+];
 
 export function Hero() {
   return (
@@ -11,7 +19,7 @@ export function Hero() {
         <div>
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-border/80 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
             <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-            5 free credits on signup. No credit card required.
+            5 free thumbnails on signup. No credit card required.
           </div>
           <h1 className="text-4xl font-black tracking-tight md:text-6xl">
             AI thumbnails that
@@ -44,47 +52,28 @@ export function Hero() {
         <div className="relative">
           <div className="grid grid-cols-2 gap-3 md:gap-4">
             <div className="space-y-3 md:space-y-4">
-              <ThumbnailCard
-                title="I tried this for 30 days"
-                badge="Vlog"
-                fromColor="#ff7b3d"
-                toColor="#ff2e63"
-              />
-              <ThumbnailCard
-                title="$1 vs $1,000,000"
-                badge="Challenge"
-                fromColor="#1d4ed8"
-                toColor="#0ea5e9"
-              />
-              <ThumbnailCard
-                title="Don't make this mistake"
-                badge="Tutorial"
-                fromColor="#0f766e"
-                toColor="#22c55e"
-              />
+              {HERO_THUMBS.slice(0, 3).map((t) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={t.src}
+                  src={t.src}
+                  alt={t.alt}
+                  className="aspect-video w-full overflow-hidden rounded-xl border border-white/10 object-cover shadow-2xl"
+                  loading="lazy"
+                />
+              ))}
             </div>
             <div className="space-y-3 pt-8 md:space-y-4 md:pt-12">
-              <ThumbnailCard
-                title="My new setup"
-                badge="Tech"
-                fromColor="#6d28d9"
-                toColor="#0ea5e9"
-                align="right"
-              />
-              <ThumbnailCard
-                title="REACTING TO THIS"
-                badge="Reaction"
-                fromColor="#dc2626"
-                toColor="#facc15"
-                align="right"
-              />
-              <ThumbnailCard
-                title="The hidden truth"
-                badge="Podcast"
-                fromColor="#1f2937"
-                toColor="#9333ea"
-                align="right"
-              />
+              {HERO_THUMBS.slice(3, 6).map((t) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={t.src}
+                  src={t.src}
+                  alt={t.alt}
+                  className="aspect-video w-full overflow-hidden rounded-xl border border-white/10 object-cover shadow-2xl"
+                  loading="lazy"
+                />
+              ))}
             </div>
           </div>
         </div>

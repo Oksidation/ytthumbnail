@@ -30,9 +30,16 @@ export async function generateImages(
   const model = env.OPENAI_IMAGE_MODEL;
   const client = openai();
 
-  // 1536x1024 is the widest 3:2 size accepted by gpt-image. We resize to
-  // 1280x720 with sharp downstream.
-  const size = "1536x1024";
+  // gpt-image-2 supports flexible sizes (any multiple of 16, ratio <=3:1,
+  // max edge 3840). 1280x720 is YouTube's native thumbnail spec, so we
+  // request it directly — no cropping, no text clipping.
+  // (gpt-image-1/1.5 only support 1024x1024, 1536x1024, 1024x1536. The cast
+  // bypasses the SDK's stricter type which hasn't been updated for v2 yet.)
+  const size = "1280x720" as "1024x1024";
+
+  // gpt-image-2 doesn't accept input_fidelity (always high) — sending it
+  // would error. gpt-image-1/1.5 do accept it. We detect by model name.
+  const isV2 = model.startsWith("gpt-image-2");
 
   let response: { data?: Array<{ b64_json?: string | null }> };
   if (input.referenceImage) {
@@ -41,19 +48,28 @@ export async function generateImages(
       "reference.png",
       { type: input.referenceImageContentType ?? "image/png" },
     );
-    response = (await client.images.edit({
+    const editParams: Record<string, unknown> = {
       model,
       prompt: input.prompt,
       n: input.variations,
       size,
       image: file,
-    } as Parameters<typeof client.images.edit>[0])) as typeof response;
+      quality: "high",
+    };
+    if (!isV2) {
+      // For gpt-image-1.x: explicitly preserve face/brand fidelity.
+      editParams.input_fidelity = "high";
+    }
+    response = (await client.images.edit(
+      editParams as unknown as Parameters<typeof client.images.edit>[0],
+    )) as typeof response;
   } else {
     response = (await client.images.generate({
       model,
       prompt: input.prompt,
       n: input.variations,
       size,
+      quality: "high",
     } as Parameters<typeof client.images.generate>[0])) as typeof response;
   }
 

@@ -7,6 +7,11 @@ Tracks what's left to take the prototype from "code on disk" to "I can generate 
 - [ ] **Apply Supabase migrations.** In Supabase Dashboard → SQL Editor → New query, paste each file's contents and run, in order:
   1. `supabase/migrations/0001_init.sql` — tables, RLS, signup trigger, credit functions
   2. `supabase/migrations/0002_storage.sql` — `references` and `thumbnails` storage buckets + policies
+  3. `supabase/migrations/0003_edits.sql` — parent_generation_id columns + extended debit fn
+  4. `supabase/migrations/0004_signup_bonus_5.sql` — 5 free signup credits + backfill
+  5. `supabase/migrations/0005_concepts.sql` — concept_sets / concepts / batch_id
+  6. `supabase/migrations/0006_characters.sql` — characters table + concept_sets.character_id
+  7. After running each: `notify pgrst, 'reload schema';` so PostgREST picks up new functions/columns
 - [ ] **Verify `.env.local` has these filled in:**
   - `NEXT_PUBLIC_SITE_URL` (use `http://localhost:3000` for dev)
   - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`

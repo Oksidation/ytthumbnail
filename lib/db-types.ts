@@ -31,7 +31,16 @@ export interface ConceptSetRow {
   title: string;
   style_preset: string | null;
   reference_image_path: string | null;
+  character_id: string | null;
   count: number;
+  created_at: string;
+}
+
+export interface CharacterRow {
+  id: string;
+  user_id: string;
+  name: string;
+  image_paths: string[];
   created_at: string;
 }
 

@@ -9,12 +9,17 @@ import { generateConcepts } from "@/lib/concepts";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const schema = z.object({
-  title: z.string().min(4).max(200),
-  count: z.union([z.literal(8), z.literal(12), z.literal(20)]),
-  stylePreset: z.string().optional(),
-  referencePath: z.string().optional(),
-});
+const schema = z
+  .object({
+    title: z.string().min(4).max(200),
+    count: z.union([z.literal(8), z.literal(12), z.literal(20)]),
+    stylePreset: z.string().optional(),
+    referencePath: z.string().optional(),
+    characterId: z.uuid().optional(),
+  })
+  .refine((v) => !(v.referencePath && v.characterId), {
+    message: "referencePath and characterId are mutually exclusive",
+  });
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
@@ -64,13 +69,27 @@ export async function POST(request: NextRequest) {
     referencePath = parsed.data.referencePath;
   }
 
+  // If a character is specified, verify it belongs to the user (RLS enforces).
+  let characterId: string | null = null;
+  if (parsed.data.characterId) {
+    const { data: character } = await supabase
+      .from("characters")
+      .select("id")
+      .eq("id", parsed.data.characterId)
+      .single<{ id: string }>();
+    if (!character) {
+      return NextResponse.json({ error: "character_not_found" }, { status: 404 });
+    }
+    characterId = character.id;
+  }
+
   let concepts;
   try {
     concepts = await generateConcepts({
       title: parsed.data.title,
       count: parsed.data.count,
       stylePresetId: parsed.data.stylePreset,
-      hasReference: Boolean(referencePath),
+      hasReference: Boolean(referencePath || characterId),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "concept_failure";
@@ -86,6 +105,7 @@ export async function POST(request: NextRequest) {
       title: parsed.data.title,
       style_preset: parsed.data.stylePreset ?? null,
       reference_image_path: referencePath,
+      character_id: characterId,
       count: parsed.data.count,
     })
     .select("id")

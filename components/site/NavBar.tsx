@@ -24,12 +24,20 @@ export async function NavBar() {
 
         <div className="flex items-center gap-3">
           {user ? (
-            <Link
-              href="/dashboard"
-              className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-            >
-              Dashboard
-            </Link>
+            <>
+              <Link
+                href="/characters"
+                className="hidden text-sm text-muted-foreground hover:text-foreground md:block"
+              >
+                Characters
+              </Link>
+              <Link
+                href="/dashboard"
+                className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+              >
+                Dashboard
+              </Link>
+            </>
           ) : (
             <>
               <Link

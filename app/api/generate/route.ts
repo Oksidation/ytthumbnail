@@ -77,16 +77,18 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // 3. Resolve effective prompt + style + reference based on input source.
+  // 3. Resolve effective prompt + style + references based on input source.
   //    Three mutually-exclusive paths (enforced by Zod):
-  //      (a) referencePath: user-uploaded reference + free-form prompt
+  //      (a) referencePath: one-off user-uploaded reference + free-form prompt
   //      (b) parentGenerationId: edit existing thumbnail + free-form edit prompt
   //      (c) conceptId: render an LLM-generated concept (uses concept's prompt
-  //          + concept set's style/reference)
+  //          + concept set's style + reference OR character images)
   let effectivePrompt = parsed.data.prompt ?? "";
   let effectiveStylePreset: string | null = parsed.data.stylePreset ?? null;
-  let referencePath: string | null = null;
-  let referenceBucket: "references" | "thumbnails" = "references";
+  // Reference sources: ALL come from the same bucket, but may be multiple
+  // images (character) or a single image (one-off / parent edit).
+  const refSources: { path: string; bucket: "references" | "thumbnails" }[] = [];
+  let primaryReferencePath: string | null = null;
   let parentGenerationId: string | null = null;
   let parentOutputIndex: number | null = null;
   let conceptId: string | null = null;
@@ -95,8 +97,8 @@ export async function POST(request: NextRequest) {
     if (!parsed.data.referencePath.startsWith(`${user.id}/`)) {
       return NextResponse.json({ error: "invalid_reference" }, { status: 400 });
     }
-    referencePath = parsed.data.referencePath;
-    referenceBucket = "references";
+    refSources.push({ path: parsed.data.referencePath, bucket: "references" });
+    primaryReferencePath = parsed.data.referencePath;
   } else if (parsed.data.parentGenerationId) {
     const { data: parent, error: parentErr } = await supabase
       .from("generations")
@@ -114,8 +116,8 @@ export async function POST(request: NextRequest) {
     if (idx >= parent.output_paths.length) {
       return NextResponse.json({ error: "parent_index_out_of_range" }, { status: 400 });
     }
-    referencePath = parent.output_paths[idx];
-    referenceBucket = "thumbnails";
+    refSources.push({ path: parent.output_paths[idx], bucket: "thumbnails" });
+    primaryReferencePath = parent.output_paths[idx];
     parentGenerationId = parent.id;
     parentOutputIndex = idx;
   } else if (parsed.data.conceptId) {
@@ -123,7 +125,7 @@ export async function POST(request: NextRequest) {
     const { data: concept, error: conceptErr } = await supabase
       .from("concepts")
       .select(
-        "id, prompt, concept_set_id, concept_sets!inner(style_preset, reference_image_path, user_id)",
+        "id, prompt, concept_set_id, concept_sets!inner(style_preset, reference_image_path, character_id, user_id)",
       )
       .eq("id", parsed.data.conceptId)
       .single<{
@@ -133,6 +135,7 @@ export async function POST(request: NextRequest) {
         concept_sets: {
           style_preset: string | null;
           reference_image_path: string | null;
+          character_id: string | null;
           user_id: string;
         };
       }>();
@@ -142,11 +145,28 @@ export async function POST(request: NextRequest) {
     }
     effectivePrompt = concept.prompt;
     effectiveStylePreset = concept.concept_sets.style_preset;
-    if (concept.concept_sets.reference_image_path) {
-      referencePath = concept.concept_sets.reference_image_path;
-      referenceBucket = "references";
-    }
     conceptId = concept.id;
+
+    // Character takes precedence over single reference if both exist.
+    if (concept.concept_sets.character_id) {
+      const { data: character } = await supabase
+        .from("characters")
+        .select("image_paths")
+        .eq("id", concept.concept_sets.character_id)
+        .single<{ image_paths: string[] }>();
+      if (character?.image_paths?.length) {
+        for (const path of character.image_paths) {
+          refSources.push({ path, bucket: "references" });
+        }
+        primaryReferencePath = character.image_paths[0];
+      }
+    } else if (concept.concept_sets.reference_image_path) {
+      refSources.push({
+        path: concept.concept_sets.reference_image_path,
+        bucket: "references",
+      });
+      primaryReferencePath = concept.concept_sets.reference_image_path;
+    }
   }
 
   // 4. Moderate the effective prompt (concepts already moderated via title,
@@ -166,7 +186,7 @@ export async function POST(request: NextRequest) {
       p_amount: parsed.data.variations,
       p_prompt: effectivePrompt,
       p_style_preset: effectiveStylePreset,
-      p_reference_image_path: referencePath,
+      p_reference_image_path: primaryReferencePath,
       p_variations: parsed.data.variations,
       p_parent_generation_id: parentGenerationId,
       p_parent_output_index: parentOutputIndex,
@@ -189,17 +209,21 @@ export async function POST(request: NextRequest) {
 
   // From here on, ANY failure must refund the credits before returning.
   try {
-    // 6. Optionally fetch reference image (from the bucket resolved above)
-    let referenceBuffer: Buffer | undefined;
-    let referenceContentType: string | undefined;
-    if (referencePath) {
-      const { data: refData, error: refError } = await admin.storage
-        .from(referenceBucket)
-        .download(referencePath);
-      if (refError || !refData) throw new Error("reference_download_failed");
-      referenceBuffer = Buffer.from(await refData.arrayBuffer());
-      referenceContentType = refData.type;
-    }
+    // 6. Download all reference images in parallel (1-5 of them).
+    const referenceImages = await Promise.all(
+      refSources.map(async ({ path, bucket }) => {
+        const { data: refData, error: refError } = await admin.storage
+          .from(bucket)
+          .download(path);
+        if (refError || !refData) {
+          throw new Error(`reference_download_failed: ${path}`);
+        }
+        return {
+          buffer: Buffer.from(await refData.arrayBuffer()),
+          contentType: refData.type || "image/png",
+        };
+      }),
+    );
 
     // 7. Call OpenAI. For concept-driven renders the prompt is already a
     //    complete LLM-authored prompt — don't re-append style suffixes.
@@ -209,8 +233,7 @@ export async function POST(request: NextRequest) {
     const buffers = await generateImages({
       prompt: finalPrompt,
       variations: parsed.data.variations,
-      referenceImage: referenceBuffer,
-      referenceImageContentType: referenceContentType,
+      referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
     });
 
     // 8. Resize to 1280x720 and upload

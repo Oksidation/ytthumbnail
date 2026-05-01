@@ -10,12 +10,20 @@ export function openai(): OpenAI {
   return cached;
 }
 
+export interface ReferenceImage {
+  buffer: Buffer;
+  contentType: string;
+}
+
 export interface GenerateImagesInput {
   prompt: string;
   variations: number;
-  /** Optional reference image as a Buffer (e.g., user's face). */
-  referenceImage?: Buffer;
-  referenceImageContentType?: string;
+  /**
+   * One or more reference images. Single-image flows pass an array of length 1;
+   * character-trained flows pass up to 5. gpt-image-2 treats the array as
+   * combined reference material for a single output.
+   */
+  referenceImages?: ReferenceImage[];
 }
 
 /**
@@ -42,18 +50,24 @@ export async function generateImages(
   const isV2 = model.startsWith("gpt-image-2");
 
   let response: { data?: Array<{ b64_json?: string | null }> };
-  if (input.referenceImage) {
-    const file = await OpenAI.toFile(
-      input.referenceImage,
-      "reference.png",
-      { type: input.referenceImageContentType ?? "image/png" },
+  const refs = input.referenceImages ?? [];
+  if (refs.length > 0) {
+    const files = await Promise.all(
+      refs.map((r, i) =>
+        OpenAI.toFile(r.buffer, `reference-${i}.png`, {
+          type: r.contentType || "image/png",
+        }),
+      ),
     );
+    // Single-image flows pass a bare file; multi-image flows pass an array.
+    // The SDK accepts both via `image: Uploadable | Array<Uploadable>`.
+    const imageParam = files.length === 1 ? files[0] : files;
     const editParams: Record<string, unknown> = {
       model,
       prompt: input.prompt,
       n: input.variations,
       size,
-      image: file,
+      image: imageParam,
       quality: "medium",
     };
     if (!isV2) {

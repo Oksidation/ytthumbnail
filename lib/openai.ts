@@ -54,7 +54,7 @@ export async function generateImages(
       n: input.variations,
       size,
       image: file,
-      quality: "high",
+      quality: "medium",
     };
     if (!isV2) {
       // For gpt-image-1.x: explicitly preserve face/brand fidelity.
@@ -69,7 +69,7 @@ export async function generateImages(
       prompt: input.prompt,
       n: input.variations,
       size,
-      quality: "high",
+      quality: "medium",
     } as Parameters<typeof client.images.generate>[0])) as typeof response;
   }
 

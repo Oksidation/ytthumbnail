@@ -2,12 +2,25 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import { loginWithPassword, type LoginState } from "./actions";
+import { signupWithPassword, type SignupState } from "./actions";
 
-const initial: LoginState = { status: "idle" };
+const initial: SignupState = { status: "idle" };
 
-export function LoginForm({ next }: { next?: string }) {
-  const [state, action, pending] = useActionState(loginWithPassword, initial);
+export function SignupForm({ next }: { next?: string }) {
+  const [state, action, pending] = useActionState(signupWithPassword, initial);
+
+  if (state.status === "confirm") {
+    return (
+      <div className="rounded-xl border border-border/60 bg-muted/40 p-6 text-center">
+        <h2 className="text-lg font-semibold">Check your email</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          We sent a confirmation link to{" "}
+          <span className="text-foreground">{state.email}</span>. Click it to
+          finish signing up.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <form action={action} className="space-y-4">
@@ -27,24 +40,18 @@ export function LoginForm({ next }: { next?: string }) {
       </div>
 
       <div>
-        <div className="flex items-center justify-between">
-          <label htmlFor="password" className="block text-sm font-medium">
-            Password
-          </label>
-          <Link
-            href="/reset-password"
-            className="text-xs text-accent hover:underline"
-          >
-            Forgot?
-          </Link>
-        </div>
+        <label htmlFor="password" className="block text-sm font-medium">
+          Password
+        </label>
         <input
           id="password"
           name="password"
           type="password"
           required
-          autoComplete="current-password"
-          minLength={6}
+          autoComplete="new-password"
+          minLength={8}
+          maxLength={128}
+          placeholder="At least 8 characters"
           className="mt-2 w-full rounded-md border border-border bg-muted/40 px-4 py-3 text-base outline-none ring-accent/40 focus:border-accent focus:ring-2"
         />
       </div>
@@ -56,7 +63,7 @@ export function LoginForm({ next }: { next?: string }) {
         disabled={pending}
         className="w-full rounded-md bg-accent px-4 py-3 font-semibold text-accent-foreground transition hover:opacity-90 disabled:opacity-60"
       >
-        {pending ? "Signing in..." : "Sign in"}
+        {pending ? "Creating account..." : "Create account · 5 free thumbnails"}
       </button>
 
       {state.status === "error" ? (
@@ -64,12 +71,12 @@ export function LoginForm({ next }: { next?: string }) {
       ) : null}
 
       <p className="pt-3 text-center text-sm text-muted-foreground">
-        Don&apos;t have an account?{" "}
+        Already have an account?{" "}
         <Link
-          href={`/signup${next ? `?next=${encodeURIComponent(next)}` : ""}`}
+          href={`/login${next ? `?next=${encodeURIComponent(next)}` : ""}`}
           className="text-accent hover:underline"
         >
-          Sign up
+          Sign in
         </Link>
       </p>
     </form>

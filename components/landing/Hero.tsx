@@ -35,7 +35,7 @@ export function Hero() {
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
-              href="/login"
+              href="/signup"
               className="rounded-md bg-accent px-6 py-3 font-semibold text-accent-foreground transition hover:opacity-90"
             >
               Try it free

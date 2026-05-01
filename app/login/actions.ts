@@ -1,47 +1,42 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-const schema = z.object({
+const loginSchema = z.object({
   email: z.email(),
+  password: z.string().min(1),
   next: z.string().optional(),
 });
 
-export type SendMagicLinkState =
+export type LoginState =
   | { status: "idle" }
-  | { status: "sent"; email: string }
   | { status: "error"; message: string };
 
-export async function sendMagicLink(
-  _prev: SendMagicLinkState,
+export async function loginWithPassword(
+  _prev: LoginState,
   formData: FormData,
-): Promise<SendMagicLinkState> {
-  const parsed = schema.safeParse({
+): Promise<LoginState> {
+  const parsed = loginSchema.safeParse({
     email: formData.get("email"),
+    password: formData.get("password"),
     next: formData.get("next") ?? undefined,
   });
   if (!parsed.success) {
-    return { status: "error", message: "Please enter a valid email." };
-  }
-
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL!;
-  const callbackUrl = new URL("/auth/callback", siteUrl);
-  if (parsed.data.next) {
-    callbackUrl.searchParams.set("next", parsed.data.next);
+    return { status: "error", message: "Please enter a valid email and password." };
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.auth.signInWithOtp({
+  const { error } = await supabase.auth.signInWithPassword({
     email: parsed.data.email,
-    options: {
-      emailRedirectTo: callbackUrl.toString(),
-      shouldCreateUser: true,
-    },
+    password: parsed.data.password,
   });
 
   if (error) {
     return { status: "error", message: error.message };
   }
-  return { status: "sent", email: parsed.data.email };
+
+  const next = parsed.data.next;
+  redirect(next && next.startsWith("/") ? next : "/dashboard");
 }

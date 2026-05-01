@@ -27,7 +27,7 @@ export function BuyButton({
         body: JSON.stringify({ pack }),
       });
       if (res.status === 401) {
-        router.push(`/login?next=/pricing`);
+        router.push(`/signup?next=/pricing`);
         return;
       }
       const data = await res.json();

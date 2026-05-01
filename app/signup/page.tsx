@@ -2,13 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Container } from "@/components/site/Container";
 import { getCurrentUser } from "@/lib/auth";
-import { LoginForm } from "./LoginForm";
+import { SignupForm } from "./SignupForm";
 
-export const metadata = {
-  title: "Sign in",
-};
+export const metadata = { title: "Sign up" };
 
-export default async function LoginPage({
+export default async function SignupPage({
   searchParams,
 }: {
   searchParams: Promise<{ next?: string }>;
@@ -31,12 +29,12 @@ export default async function LoginPage({
           </span>
           <span className="font-semibold text-foreground">Thumbly</span>
         </Link>
-        <h1 className="text-3xl font-bold tracking-tight">Sign in</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Create your account</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Welcome back. New here? Your first 5 thumbnails are on us.
+          5 free thumbnails on signup. No credit card required.
         </p>
         <div className="mt-8">
-          <LoginForm next={params.next} />
+          <SignupForm next={params.next} />
         </div>
       </Container>
     </main>

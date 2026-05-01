@@ -1,24 +1,10 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { Container } from "@/components/site/Container";
-import { getCurrentUser } from "@/lib/auth";
-import { LoginForm } from "./LoginForm";
+import { RequestResetForm } from "./RequestResetForm";
 
-export const metadata = {
-  title: "Sign in",
-};
+export const metadata = { title: "Reset password" };
 
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ next?: string }>;
-}) {
-  const params = await searchParams;
-  const user = await getCurrentUser();
-  if (user) {
-    redirect(params.next ?? "/dashboard");
-  }
-
+export default function ResetPasswordRequestPage() {
   return (
     <main className="flex flex-1 items-center justify-center py-16">
       <Container className="max-w-md">
@@ -31,12 +17,13 @@ export default async function LoginPage({
           </span>
           <span className="font-semibold text-foreground">Thumbly</span>
         </Link>
-        <h1 className="text-3xl font-bold tracking-tight">Sign in</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Reset password</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Welcome back. New here? Your first 5 thumbnails are on us.
+          Enter the email you signed up with. We&apos;ll send a link to set a
+          new password.
         </p>
         <div className="mt-8">
-          <LoginForm next={params.next} />
+          <RequestResetForm />
         </div>
       </Container>
     </main>

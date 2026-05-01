@@ -8,6 +8,7 @@ const coreSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   OPENAI_API_KEY: z.string().min(1),
   OPENAI_IMAGE_MODEL: z.string().default("gpt-image-2-2026-04-21"),
+  OPENAI_CONCEPT_MODEL: z.string().default("gpt-5-mini"),
 });
 
 // Optional — features fail per-route until configured.

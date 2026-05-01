@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, Sparkles } from "lucide-react";
 import { Container } from "@/components/site/Container";
 import { NavBar } from "@/components/site/NavBar";
 import { Footer } from "@/components/site/Footer";
 import { getUserWithProfile } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { signThumbnailUrl } from "@/lib/storage";
-import type { GenerationRow } from "@/lib/db-types";
+import type { ConceptSetRow, GenerationRow } from "@/lib/db-types";
 
 export const metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
@@ -17,12 +17,22 @@ export default async function DashboardPage() {
   if (!user) redirect("/login?next=/dashboard");
 
   const supabase = await createSupabaseServerClient();
-  const { data: gens } = await supabase
-    .from("generations")
-    .select("id, user_id, prompt, style_preset, reference_image_path, variations, output_paths, status, credits_used, error, created_at")
-    .order("created_at", { ascending: false })
-    .limit(24)
-    .returns<GenerationRow[]>();
+  const [{ data: gens }, { data: sets }] = await Promise.all([
+    supabase
+      .from("generations")
+      .select(
+        "id, user_id, prompt, style_preset, reference_image_path, variations, output_paths, status, credits_used, error, created_at, parent_generation_id, parent_output_index, batch_id, concept_id",
+      )
+      .order("created_at", { ascending: false })
+      .limit(24)
+      .returns<GenerationRow[]>(),
+    supabase
+      .from("concept_sets")
+      .select("id, user_id, title, style_preset, reference_image_path, count, created_at")
+      .order("created_at", { ascending: false })
+      .limit(10)
+      .returns<ConceptSetRow[]>(),
+  ]);
 
   const cards = await Promise.all(
     (gens ?? []).map(async (g) => {
@@ -103,6 +113,38 @@ export default async function DashboardPage() {
               ))}
             </div>
           )}
+
+          {sets && sets.length > 0 ? (
+            <section className="mt-16">
+              <h2 className="text-xl font-semibold tracking-tight">
+                Recent concept sets
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Re-pick from any of these to render different thumbnails.
+              </p>
+              <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+                {sets.map((s) => (
+                  <li key={s.id}>
+                    <Link
+                      href={`/concepts/${s.id}`}
+                      className="flex items-center gap-3 rounded-xl border border-border/60 bg-muted/20 p-4 transition hover:bg-muted/40"
+                    >
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accent/10 text-accent">
+                        <Sparkles size={18} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <p className="line-clamp-1 text-sm font-medium">{s.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {s.count} concepts ·{" "}
+                          {new Date(s.created_at).toLocaleDateString()}
+                        </p>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
         </Container>
       </main>
       <Footer />

@@ -2,23 +2,21 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, Wand2 } from "lucide-react";
+import { Upload, Sparkles } from "lucide-react";
 import { STYLE_PRESETS } from "@/lib/presets";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
-const VARIATION_OPTIONS = [1, 2, 4] as const;
+const COUNT_OPTIONS = [8, 12, 20] as const;
 
-export function GenerateForm({ creditsBalance }: { creditsBalance: number }) {
+export function GenerateForm() {
   const router = useRouter();
-  const [prompt, setPrompt] = useState("");
+  const [title, setTitle] = useState("");
   const [stylePreset, setStylePreset] = useState<string>("none");
-  const [variations, setVariations] = useState<number>(2);
+  const [count, setCount] = useState<number>(12);
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const insufficient = creditsBalance < variations;
 
   async function uploadReference(file: File): Promise<string> {
     setUploading(true);
@@ -48,39 +46,31 @@ export function GenerateForm({ creditsBalance }: { creditsBalance: number }) {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    if (insufficient) {
-      setError("Not enough credits. Buy a pack on the pricing page.");
-      return;
-    }
     setSubmitting(true);
     try {
       let referencePath: string | undefined;
       if (referenceFile) {
         referencePath = await uploadReference(referenceFile);
       }
-      const res = await fetch("/api/generate", {
+      const res = await fetch("/api/concepts", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          prompt: prompt.trim(),
+          title: title.trim(),
+          count,
           stylePreset,
-          variations,
           referencePath,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
-        if (res.status === 402) {
-          setError("Not enough credits.");
-        } else if (res.status === 429) {
-          setError("Slow down — you're rate-limited. Try again in a few minutes.");
-        } else {
-          setError(data.message ?? data.error ?? "Generation failed.");
-        }
+        if (res.status === 429)
+          setError("Slow down — try again in a few minutes.");
+        else setError(data.message ?? data.error ?? "Concept generation failed.");
         setSubmitting(false);
         return;
       }
-      router.push(`/generate/${data.generationId}`);
+      router.push(`/concepts/${data.conceptSetId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unexpected error.");
       setSubmitting(false);
@@ -90,22 +80,22 @@ export function GenerateForm({ creditsBalance }: { creditsBalance: number }) {
   return (
     <form onSubmit={onSubmit} className="space-y-8">
       <div>
-        <label htmlFor="prompt" className="block text-sm font-medium">
-          Video title or description
+        <label htmlFor="title" className="block text-sm font-medium">
+          Video title
         </label>
-        <textarea
-          id="prompt"
+        <input
+          id="title"
+          type="text"
           required
-          minLength={8}
-          maxLength={500}
-          rows={3}
+          minLength={4}
+          maxLength={200}
           placeholder="e.g. I tried Apple's new Vision Pro for 30 days"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
           className="mt-2 w-full rounded-md border border-border bg-muted/40 px-4 py-3 text-base outline-none ring-accent/40 focus:border-accent focus:ring-2"
         />
         <p className="mt-1 text-xs text-muted-foreground">
-          One sentence is best. Mention emotion, action, or stakes for higher CTR.
+          Just your YouTube title — we&apos;ll write the thumbnail concepts for you.
         </p>
       </div>
 
@@ -132,7 +122,8 @@ export function GenerateForm({ creditsBalance }: { creditsBalance: number }) {
       <div>
         <p className="block text-sm font-medium">Reference image (optional)</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Upload a photo of yourself or your brand asset. Max 8 MB. PNG/JPG/WebP.
+          Upload a photo of yourself or your brand. Concepts will feature you
+          as the central subject. Max 8 MB.
         </p>
         <label
           htmlFor="reference"
@@ -151,23 +142,23 @@ export function GenerateForm({ creditsBalance }: { creditsBalance: number }) {
       </div>
 
       <div>
-        <p className="block text-sm font-medium">Variations</p>
+        <p className="block text-sm font-medium">How many concepts?</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Each variation costs 1 credit.
+          Concepts are free. You only spend credits on the ones you choose to render.
         </p>
         <div className="mt-2 grid grid-cols-3 gap-2">
-          {VARIATION_OPTIONS.map((n) => (
+          {COUNT_OPTIONS.map((n) => (
             <button
               key={n}
               type="button"
-              onClick={() => setVariations(n)}
+              onClick={() => setCount(n)}
               className={`rounded-md border px-3 py-2 text-sm transition ${
-                variations === n
+                count === n
                   ? "border-accent bg-accent/10 text-foreground"
                   : "border-border bg-muted/30 text-muted-foreground hover:bg-muted"
               }`}
             >
-              {n} {n === 1 ? "image" : "images"}
+              {n} concepts
             </button>
           ))}
         </div>
@@ -175,20 +166,22 @@ export function GenerateForm({ creditsBalance }: { creditsBalance: number }) {
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/20 p-4">
         <div className="text-sm">
-          <p className="font-medium">{variations} credit{variations > 1 ? "s" : ""} will be used</p>
-          <p className="text-muted-foreground">{creditsBalance} available</p>
+          <p className="font-medium">No credits used yet</p>
+          <p className="text-muted-foreground">
+            You&apos;ll pick which concepts to render on the next page.
+          </p>
         </div>
         <button
           type="submit"
-          disabled={submitting || uploading || insufficient}
+          disabled={submitting || uploading}
           className="inline-flex items-center gap-2 rounded-md bg-accent px-5 py-2.5 font-semibold text-accent-foreground transition hover:opacity-90 disabled:opacity-60"
         >
-          <Wand2 size={18} />
+          <Sparkles size={18} />
           {uploading
             ? "Uploading..."
             : submitting
-              ? "Generating..."
-              : "Generate"}
+              ? "Generating concepts..."
+              : "Generate concepts"}
         </button>
       </div>
 

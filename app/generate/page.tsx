@@ -3,14 +3,14 @@ import { redirect } from "next/navigation";
 import { Container } from "@/components/site/Container";
 import { NavBar } from "@/components/site/NavBar";
 import { Footer } from "@/components/site/Footer";
-import { getUserWithProfile } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
 import { GenerateForm } from "./GenerateForm";
 
 export const metadata = { title: "New thumbnail" };
 export const dynamic = "force-dynamic";
 
 export default async function GeneratePage() {
-  const { user, profile } = await getUserWithProfile();
+  const user = await getCurrentUser();
   if (!user) redirect("/login?next=/generate");
 
   return (
@@ -28,7 +28,7 @@ export default async function GeneratePage() {
             </Link>
           </div>
 
-          <GenerateForm creditsBalance={profile?.credits_balance ?? 0} />
+          <GenerateForm />
         </Container>
       </main>
       <Footer />

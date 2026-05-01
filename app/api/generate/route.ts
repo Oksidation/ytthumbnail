@@ -13,17 +13,26 @@ export const maxDuration = 120;
 
 const schema = z
   .object({
-    prompt: z.string().min(8).max(500),
+    // `prompt` is required UNLESS `conceptId` is provided (then we read it
+    // from the concept row server-side). We can't make it conditional in pure
+    // Zod cleanly, so we default to optional + .refine() below.
+    prompt: z.string().min(8).max(2000).optional(),
     stylePreset: z.string().optional(),
     variations: z.number().int().min(1).max(4),
     referencePath: z.string().optional(),
     parentGenerationId: z.uuid().optional(),
     parentOutputIndex: z.number().int().min(0).max(3).optional(),
+    conceptId: z.uuid().optional(),
+    batchId: z.uuid().optional(),
   })
   .refine(
     (v) =>
-      !(v.referencePath && v.parentGenerationId),
-    { message: "referencePath and parentGenerationId are mutually exclusive" },
+      [v.referencePath, v.parentGenerationId, v.conceptId].filter(Boolean)
+        .length <= 1,
+    {
+      message:
+        "referencePath, parentGenerationId, and conceptId are mutually exclusive",
+    },
   )
   .refine(
     (v) =>
@@ -31,6 +40,10 @@ const schema = z
         ? typeof v.parentOutputIndex === "number"
         : true,
     { message: "parentOutputIndex is required when parentGenerationId is set" },
+  )
+  .refine(
+    (v) => Boolean(v.prompt) || Boolean(v.conceptId),
+    { message: "prompt is required (unless conceptId is provided)" },
   );
 
 export async function POST(request: NextRequest) {
@@ -64,19 +77,19 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // 3. Moderate
-  const mod = await moderatePrompt(parsed.data.prompt);
-  if (!mod.ok) {
-    return NextResponse.json({ error: "moderated", message: mod.reason }, { status: 400 });
-  }
-
-  // 4. Resolve reference image source.
-  //    - User-uploaded: parsed.data.referencePath in `references` bucket
-  //    - Edit chain: parent's output[i] in `thumbnails` bucket
+  // 3. Resolve effective prompt + style + reference based on input source.
+  //    Three mutually-exclusive paths (enforced by Zod):
+  //      (a) referencePath: user-uploaded reference + free-form prompt
+  //      (b) parentGenerationId: edit existing thumbnail + free-form edit prompt
+  //      (c) conceptId: render an LLM-generated concept (uses concept's prompt
+  //          + concept set's style/reference)
+  let effectivePrompt = parsed.data.prompt ?? "";
+  let effectiveStylePreset: string | null = parsed.data.stylePreset ?? null;
   let referencePath: string | null = null;
   let referenceBucket: "references" | "thumbnails" = "references";
   let parentGenerationId: string | null = null;
   let parentOutputIndex: number | null = null;
+  let conceptId: string | null = null;
 
   if (parsed.data.referencePath) {
     if (!parsed.data.referencePath.startsWith(`${user.id}/`)) {
@@ -85,7 +98,6 @@ export async function POST(request: NextRequest) {
     referencePath = parsed.data.referencePath;
     referenceBucket = "references";
   } else if (parsed.data.parentGenerationId) {
-    // RLS scopes this to the current user's rows only.
     const { data: parent, error: parentErr } = await supabase
       .from("generations")
       .select("id, output_paths, status")
@@ -106,6 +118,42 @@ export async function POST(request: NextRequest) {
     referenceBucket = "thumbnails";
     parentGenerationId = parent.id;
     parentOutputIndex = idx;
+  } else if (parsed.data.conceptId) {
+    // RLS via concept_sets join enforces ownership.
+    const { data: concept, error: conceptErr } = await supabase
+      .from("concepts")
+      .select(
+        "id, prompt, concept_set_id, concept_sets!inner(style_preset, reference_image_path, user_id)",
+      )
+      .eq("id", parsed.data.conceptId)
+      .single<{
+        id: string;
+        prompt: string;
+        concept_set_id: string;
+        concept_sets: {
+          style_preset: string | null;
+          reference_image_path: string | null;
+          user_id: string;
+        };
+      }>();
+
+    if (conceptErr || !concept) {
+      return NextResponse.json({ error: "concept_not_found" }, { status: 404 });
+    }
+    effectivePrompt = concept.prompt;
+    effectiveStylePreset = concept.concept_sets.style_preset;
+    if (concept.concept_sets.reference_image_path) {
+      referencePath = concept.concept_sets.reference_image_path;
+      referenceBucket = "references";
+    }
+    conceptId = concept.id;
+  }
+
+  // 4. Moderate the effective prompt (concepts already moderated via title,
+  //    but the LLM-generated prompt itself is freshly checked here).
+  const mod = await moderatePrompt(effectivePrompt);
+  if (!mod.ok) {
+    return NextResponse.json({ error: "moderated", message: mod.reason }, { status: 400 });
   }
 
   const admin = createSupabaseAdminClient();
@@ -116,12 +164,14 @@ export async function POST(request: NextRequest) {
     {
       p_user_id: user.id,
       p_amount: parsed.data.variations,
-      p_prompt: parsed.data.prompt,
-      p_style_preset: parsed.data.stylePreset ?? null,
+      p_prompt: effectivePrompt,
+      p_style_preset: effectiveStylePreset,
       p_reference_image_path: referencePath,
       p_variations: parsed.data.variations,
       p_parent_generation_id: parentGenerationId,
       p_parent_output_index: parentOutputIndex,
+      p_batch_id: parsed.data.batchId ?? null,
+      p_concept_id: conceptId,
     },
   );
 
@@ -151,9 +201,13 @@ export async function POST(request: NextRequest) {
       referenceContentType = refData.type;
     }
 
-    // 7. Call OpenAI
+    // 7. Call OpenAI. For concept-driven renders the prompt is already a
+    //    complete LLM-authored prompt — don't re-append style suffixes.
+    const finalPrompt = conceptId
+      ? effectivePrompt
+      : buildPrompt(effectivePrompt, effectiveStylePreset ?? undefined);
     const buffers = await generateImages({
-      prompt: buildPrompt(parsed.data.prompt, parsed.data.stylePreset),
+      prompt: finalPrompt,
       variations: parsed.data.variations,
       referenceImage: referenceBuffer,
       referenceImageContentType: referenceContentType,

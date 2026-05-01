@@ -21,6 +21,28 @@ export interface GenerationRow {
   created_at: string;
   parent_generation_id: string | null;
   parent_output_index: number | null;
+  batch_id: string | null;
+  concept_id: string | null;
+}
+
+export interface ConceptSetRow {
+  id: string;
+  user_id: string;
+  title: string;
+  style_preset: string | null;
+  reference_image_path: string | null;
+  count: number;
+  created_at: string;
+}
+
+export interface ConceptRow {
+  id: string;
+  concept_set_id: string;
+  position: number;
+  label: string;
+  badge: string | null;
+  prompt: string;
+  created_at: string;
 }
 
 export interface CreditTransactionRow {

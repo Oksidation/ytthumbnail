@@ -8,11 +8,14 @@ const coreSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   OPENAI_API_KEY: z.string().min(1),
   OPENAI_IMAGE_MODEL: z.string().default("gpt-image-2-2026-04-21"),
+  // Concept generation now uses Claude — kept for backwards-compat env files only.
   OPENAI_CONCEPT_MODEL: z.string().default("gpt-5-mini"),
+  ANTHROPIC_CONCEPT_MODEL: z.string().default("claude-opus-4-6"),
 });
 
 // Optional — features fail per-route until configured.
 const optionalSchema = z.object({
+  ANTHROPIC_API_KEY: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_STARTER: z.string().optional(),

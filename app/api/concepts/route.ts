@@ -7,7 +7,7 @@ import { moderatePrompt } from "@/lib/moderation";
 import { generateConcepts } from "@/lib/concepts";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const schema = z
   .object({

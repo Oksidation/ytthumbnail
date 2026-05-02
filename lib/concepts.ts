@@ -127,11 +127,13 @@ ${referenceLine}
 Generate exactly ${input.count} concepts.`;
 
   const client = anthropic();
-  type CreateParams = Parameters<typeof client.messages.create>[0];
+  type StreamParams = Parameters<typeof client.messages.stream>[0];
 
-  const params: CreateParams = {
+  // Anthropic structured outputs don't support array minItems/maxItems > 1, so
+  // we enforce the count via the user message instruction + post-parse check.
+  const params: StreamParams = {
     model,
-    max_tokens: 16000,
+    max_tokens: 32000,
     thinking: { type: "adaptive" },
     output_config: {
       effort: "high",
@@ -144,8 +146,6 @@ Generate exactly ${input.count} concepts.`;
           properties: {
             concepts: {
               type: "array",
-              minItems: input.count,
-              maxItems: input.count,
               items: {
                 type: "object",
                 additionalProperties: false,
@@ -181,14 +181,17 @@ Generate exactly ${input.count} concepts.`;
       },
     ],
     messages: [{ role: "user", content: userMessage }],
-  } as unknown as CreateParams;
+  } as unknown as StreamParams;
 
-  const response = await client.messages.create(params);
+  // Streaming with .finalMessage() avoids the SDK's per-chunk read timeout on
+  // long Opus runs (adaptive thinking + 20 concepts can exceed 30s).
+  const stream = client.messages.stream(params);
+  const response = await stream.finalMessage();
 
-  // gpt-image schema is enforced via output_config.format — final text block
+  // Schema is enforced server-side via output_config.format — the text block
   // contains JSON matching the schema. Skip thinking blocks.
   const textBlock = (
-    response as { content: Array<{ type: string; text?: string }> }
+    response as unknown as { content: Array<{ type: string; text?: string }> }
   ).content.find((b) => b.type === "text" && typeof b.text === "string");
 
   if (!textBlock || !textBlock.text) {

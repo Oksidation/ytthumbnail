@@ -209,7 +209,13 @@ export async function POST(request: NextRequest) {
 
   // From here on, ANY failure must refund the credits before returning.
   try {
-    // 6. Download all reference images in parallel (1-5 of them).
+    // 6. Download all reference images in parallel (1-5 of them) and normalize
+    //    each one through sharp before sending to OpenAI. The image edit
+    //    endpoint rejects images in unusual color modes (CMYK from print
+    //    workflows, palette PNG, wide-gamut Display P3 from iPhone, alpha
+    //    channels) with a 400 "invalid image file or mode" error. Forcing
+    //    everything through sharp → 8-bit sRGB JPEG eliminates that class of
+    //    failures regardless of what the user uploaded.
     const referenceImages = await Promise.all(
       refSources.map(async ({ path, bucket }) => {
         const { data: refData, error: refError } = await admin.storage
@@ -218,10 +224,22 @@ export async function POST(request: NextRequest) {
         if (refError || !refData) {
           throw new Error(`reference_download_failed: ${path}`);
         }
-        return {
-          buffer: Buffer.from(await refData.arrayBuffer()),
-          contentType: refData.type || "image/png",
-        };
+        const raw = Buffer.from(await refData.arrayBuffer());
+        try {
+          const normalized = await sharp(raw)
+            .rotate() // honor EXIF orientation (must be the first transform)
+            .flatten({ background: "#ffffff" }) // strip alpha onto white
+            .toColorspace("srgb")
+            .jpeg({ quality: 95 })
+            .toBuffer();
+          return { buffer: normalized, contentType: "image/jpeg" };
+        } catch (e) {
+          throw new Error(
+            `reference_decode_failed (${path}): ${
+              e instanceof Error ? e.message : "unknown"
+            }`,
+          );
+        }
       }),
     );
 

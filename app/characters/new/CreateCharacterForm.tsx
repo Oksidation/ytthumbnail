@@ -105,11 +105,11 @@ export function CreateCharacterForm() {
 
       <div>
         <p className="block text-sm font-medium">
-          Reference photos ({files.length}/{MAX_IMAGES})
+          Face photos ({files.length}/{MAX_IMAGES})
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Upload 4–5 photos for best face fidelity. Front, side, smiling, with
-          and without your usual outfit. PNG/JPG/WebP, ≤8 MB each.
+          Close-up shots of the face — 4–5 is best. Different angles and
+          expressions. PNG/JPG/WebP, ≤8 MB each.
         </p>
 
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-5">

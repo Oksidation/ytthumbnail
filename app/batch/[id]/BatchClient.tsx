@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Pencil } from "lucide-react";
+import { RatingStars } from "@/components/generate/RatingStars";
 
 export interface BatchRow {
   id: string;
@@ -11,6 +12,7 @@ export interface BatchRow {
   status: "pending" | "completed" | "failed" | "moderated";
   url: string | null;
   error: string | null;
+  rating: number | null;
 }
 
 export function BatchClient({
@@ -80,6 +82,11 @@ export function BatchClient({
               </div>
             ) : null}
           </div>
+          {r.status === "completed" ? (
+            <div className="border-t border-border/60 px-3 py-2">
+              <RatingStars generationId={r.id} initialRating={r.rating} />
+            </div>
+          ) : null}
         </div>
       ))}
     </div>

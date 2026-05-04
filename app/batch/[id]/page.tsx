@@ -17,6 +17,7 @@ interface JoinedRow {
   output_paths: string[];
   error: string | null;
   created_at: string;
+  rating: number | null;
   concept: { label: string } | null;
 }
 
@@ -33,7 +34,7 @@ export default async function BatchPage({
   const { data: gens } = await supabase
     .from("generations")
     .select(
-      "id, status, output_paths, error, created_at, concept:concepts(label)",
+      "id, status, output_paths, error, created_at, rating, concept:concepts(label)",
     )
     .eq("batch_id", id)
     .order("created_at", { ascending: true })
@@ -54,6 +55,7 @@ export default async function BatchPage({
         status: g.status,
         url,
         error: g.error,
+        rating: g.rating,
       };
     }),
   );

@@ -14,7 +14,7 @@ export const metadata = { title: "Result" };
 export const dynamic = "force-dynamic";
 
 const SELECT_COLS =
-  "id, user_id, prompt, style_preset, reference_image_path, variations, output_paths, status, credits_used, error, created_at, parent_generation_id, parent_output_index";
+  "id, user_id, prompt, style_preset, reference_image_path, variations, output_paths, status, credits_used, error, created_at, parent_generation_id, parent_output_index, batch_id, concept_id, rating, rated_at";
 
 export default async function ResultPage({
   params,
@@ -108,6 +108,7 @@ export default async function ResultPage({
               generationId={gen.id}
               urls={urls}
               creditsBalance={profile?.credits_balance ?? 0}
+              initialRating={gen.rating}
             />
           )}
         </Container>

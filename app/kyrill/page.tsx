@@ -30,6 +30,7 @@ interface GenerationAdminRow {
   credits_used: number;
   error: string | null;
   created_at: string;
+  rating: number | null;
   profile: { email: string } | null;
 }
 
@@ -93,7 +94,7 @@ export default async function KyrillAdminPage() {
     admin
       .from("generations")
       .select(
-        "id, user_id, prompt, status, variations, output_paths, credits_used, error, created_at, profile:profiles(email)",
+        "id, user_id, prompt, status, variations, output_paths, credits_used, error, created_at, rating, profile:profiles(email)",
       )
       .order("created_at", { ascending: false })
       .limit(40),
@@ -153,6 +154,19 @@ export default async function KyrillAdminPage() {
     0,
   );
 
+  // Average rating across every rated generation
+  const { data: ratedGens } = await admin
+    .from("generations")
+    .select("rating")
+    .not("rating", "is", null);
+  const ratingsList = ((ratedGens ?? []) as Array<{ rating: number | null }>)
+    .map((r) => r.rating)
+    .filter((r): r is number => r !== null);
+  const avgRating =
+    ratingsList.length > 0
+      ? ratingsList.reduce((s, r) => s + r, 0) / ratingsList.length
+      : null;
+
   // Sign thumbnails for the recent-generation gallery.
   const cards = await Promise.all(
     generations.map(async (g) => {
@@ -176,7 +190,7 @@ export default async function KyrillAdminPage() {
         </div>
 
         {/* Stats */}
-        <section className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <section className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
           <Stat label="Users" value={profilesCount} />
           <Stat label="Completed gens" value={completedGensCount} />
           <Stat label="Concept sets" value={conceptSetsCount} />
@@ -185,6 +199,10 @@ export default async function KyrillAdminPage() {
           <Stat
             label="Revenue (USD)"
             value={`$${(totalRevenueCents / 100).toFixed(2)}`}
+          />
+          <Stat
+            label={`Avg rating (${ratingsList.length})`}
+            value={avgRating !== null ? `${avgRating.toFixed(2)}★` : "—"}
           />
         </section>
 
@@ -218,6 +236,7 @@ export default async function KyrillAdminPage() {
                     <p className="text-[10px] text-muted-foreground">
                       {new Date(gen.created_at).toLocaleString()} · {gen.status} ·{" "}
                       {gen.credits_used}c
+                      {gen.rating ? ` · ${gen.rating}★` : " · unrated"}
                     </p>
                     {gen.error ? (
                       <p className="mt-1 line-clamp-1 text-[10px] text-red-400">

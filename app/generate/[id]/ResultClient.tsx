@@ -3,15 +3,18 @@
 import { useState } from "react";
 import { Pencil } from "lucide-react";
 import { EditPanel } from "./EditPanel";
+import { RatingStars } from "@/components/generate/RatingStars";
 
 export function ResultClient({
   generationId,
   urls,
   creditsBalance,
+  initialRating,
 }: {
   generationId: string;
   urls: (string | null)[];
   creditsBalance: number;
+  initialRating: number | null;
 }) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
@@ -59,6 +62,13 @@ export function ResultClient({
             </div>
           ) : null,
         )}
+      </div>
+
+      <div className="mt-4 flex items-center justify-end">
+        <RatingStars
+          generationId={generationId}
+          initialRating={initialRating}
+        />
       </div>
 
       {editingIndex !== null ? (

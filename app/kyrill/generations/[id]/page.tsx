@@ -31,6 +31,8 @@ interface FullGen {
   parent_output_index: number | null;
   batch_id: string | null;
   concept_id: string | null;
+  rating: number | null;
+  rated_at: string | null;
 }
 
 interface ProfileLite {
@@ -80,7 +82,7 @@ export default async function AdminGenerationDetailPage({
   const { data: gen } = await admin
     .from("generations")
     .select(
-      "id, user_id, prompt, style_preset, reference_image_path, variations, output_paths, status, credits_used, error, created_at, parent_generation_id, parent_output_index, batch_id, concept_id",
+      "id, user_id, prompt, style_preset, reference_image_path, variations, output_paths, status, credits_used, error, created_at, parent_generation_id, parent_output_index, batch_id, concept_id, rating, rated_at",
     )
     .eq("id", id)
     .single<FullGen>();
@@ -224,7 +226,21 @@ export default async function AdminGenerationDetailPage({
             </p>
             <h1 className="mt-1 break-all font-mono text-lg">{gen.id}</h1>
           </div>
-          <StatusBadge status={gen.status} />
+          <div className="flex items-center gap-3">
+            {gen.rating ? (
+              <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-300">
+                {gen.rating}★ rated
+                {gen.rated_at
+                  ? ` ${new Date(gen.rated_at).toLocaleDateString()}`
+                  : ""}
+              </span>
+            ) : (
+              <span className="rounded-full border border-border/60 px-3 py-1 text-xs uppercase tracking-wider text-muted-foreground">
+                Unrated
+              </span>
+            )}
+            <StatusBadge status={gen.status} />
+          </div>
         </div>
 
         {/* Outputs */}

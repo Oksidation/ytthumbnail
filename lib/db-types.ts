@@ -23,6 +23,8 @@ export interface GenerationRow {
   parent_output_index: number | null;
   batch_id: string | null;
   concept_id: string | null;
+  rating: number | null;
+  rated_at: string | null;
 }
 
 export interface ConceptSetRow {

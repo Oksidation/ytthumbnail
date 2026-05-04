@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import "./globals.css";
 
@@ -48,6 +49,12 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}
       </body>
+      <Script
+        id="tawk-to"
+        strategy="afterInteractive"
+        src="https://embed.tawk.to/69f8f6092a701c1c36321662/1jnq82617"
+        crossOrigin="anonymous"
+      />
       {gaId ? <GoogleAnalytics gaId={gaId} /> : null}
     </html>
   );

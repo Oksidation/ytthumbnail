@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Container } from "@/components/site/Container";
 import { getCurrentUser } from "@/lib/auth";
@@ -194,9 +195,10 @@ export default async function KyrillAdminPage() {
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {cards.map(({ gen, url }) => (
-                <div
+                <Link
                   key={gen.id}
-                  className="overflow-hidden rounded-xl border border-border/60 bg-muted/20"
+                  href={`/kyrill/generations/${gen.id}`}
+                  className="block overflow-hidden rounded-xl border border-border/60 bg-muted/20 transition hover:bg-muted/40"
                 >
                   <div className="relative aspect-video bg-muted">
                     {url ? (
@@ -223,7 +225,7 @@ export default async function KyrillAdminPage() {
                       </p>
                     ) : null}
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}

@@ -32,6 +32,12 @@ export async function NavBar() {
                 Characters
               </Link>
               <Link
+                href="/account"
+                className="hidden text-sm text-muted-foreground hover:text-foreground md:block"
+              >
+                Account
+              </Link>
+              <Link
                 href="/dashboard"
                 className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
               >

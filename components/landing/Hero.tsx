@@ -29,9 +29,9 @@ export function Hero() {
             </span>
           </h1>
           <p className="mt-6 max-w-xl text-lg text-muted-foreground">
-            Upload your face. Type your video title. Get 4 click-tested 1280×720
-            thumbnails in 30 seconds. Built for YouTube creators who want to
-            stop wasting hours in Photoshop.
+            Train a character of your face once. Type any video title — Thumbly
+            writes 8, 12, or 20 thumbnail concepts in seconds. Render only the
+            ones you like as 1280×720 PNGs. Then edit, rate, repeat.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link

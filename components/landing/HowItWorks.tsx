@@ -3,18 +3,18 @@ import { Container } from "@/components/site/Container";
 const STEPS = [
   {
     n: "1",
-    title: "Upload a reference photo",
-    body: "A clean photo of your face or your brand asset. We keep it private — only you can see it.",
+    title: "Train your character",
+    body: "Upload 4–5 close-ups of your face. Save them once and use the same character on every future thumbnail. (Optional — you can also drop a single photo per generation.)",
   },
   {
     n: "2",
-    title: "Type your video title and pick a style",
-    body: "One line of text plus a preset like Gaming or Vlog. The AI does the rest.",
+    title: "Type your video title",
+    body: "Pick how many concepts you want — 8, 12, or 20. Thumbly's AI strategist writes a complete prompt for each, varied across composition patterns and overlay styles.",
   },
   {
     n: "3",
-    title: "Download your thumbnails",
-    body: "1280×720 PNGs ready to upload. Generate variants and A/B test the winners.",
+    title: "Pick + render + edit",
+    body: "Choose the concepts you like, render them as 1280×720 PNGs, then edit any one with a prompt or download. Rate them so future runs lean toward what works.",
   },
 ];
 
@@ -27,7 +27,7 @@ export function HowItWorks() {
             How it works
           </p>
           <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
-            From idea to upload in 30 seconds.
+            From video title to ready-to-upload thumbnails.
           </h2>
         </div>
 

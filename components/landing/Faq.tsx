@@ -2,12 +2,12 @@ import { Container } from "@/components/site/Container";
 
 const QA = [
   {
-    q: "Which AI model powers Thumbly?",
-    a: "We use OpenAI's latest image generation model (gpt-image-2). It supports image inputs, so we can use your reference photo as a face or brand reference.",
+    q: "Which AI models power Thumbly?",
+    a: "Concepts are written by Claude Opus (Anthropic) — a senior model good at strategy and writing varied prompts. Images are rendered by OpenAI's gpt-image-2 with multi-image character references for faithful likeness. Both reasoning steps are tuned for high CTR thumbnails.",
   },
   {
-    q: "What if I don't like the output?",
-    a: "If a generation fails for technical reasons, your credits are refunded automatically. If you just don't like the style, we recommend tweaking your prompt or trying a different preset — every regeneration is a fresh credit.",
+    q: "What if I don't like a thumbnail?",
+    a: "Three options. (1) Don't pick that concept in the first place — concepts are free, you only pay for what you render. (2) Edit any rendered image with a prompt: 'change the background', 'swap the title to X' (1 credit per edit). (3) If a render fails for technical reasons, your credits are refunded automatically.",
   },
   {
     q: "Can I use these thumbnails commercially?",

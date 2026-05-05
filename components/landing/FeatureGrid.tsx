@@ -1,43 +1,43 @@
 import {
-  ImagePlus,
-  Palette,
-  Layers,
+  UserCircle2,
+  Sparkles,
+  ListChecks,
   Frame,
-  ShieldCheck,
+  Pencil,
   Infinity as InfinityIcon,
 } from "lucide-react";
 import { Container } from "@/components/site/Container";
 
 const FEATURES = [
   {
-    icon: ImagePlus,
-    title: "Upload your face",
-    body: "Drop in a reference photo of yourself or your brand and AI puts you on the thumbnail — no Photoshop skills needed.",
+    icon: UserCircle2,
+    title: "Train your character",
+    body: "Upload 4–5 close-ups of your face once. Every thumbnail you generate features you faithfully — no Photoshop skills, no manual cutouts.",
   },
   {
-    icon: Palette,
-    title: "Style presets",
-    body: "Gaming, vlog, podcast, MrBeast-style — pick a style and the prompt is tuned for the look that wins clicks in your niche.",
+    icon: Sparkles,
+    title: "Title in, concepts out",
+    body: "Type your YouTube title. A senior thumbnail strategist (Claude Opus) writes 8, 12, or 20 distinct concepts varied across composition patterns, palettes, and overlay styles.",
   },
   {
-    icon: Layers,
-    title: "1, 2, or 4 variations",
-    body: "Generate multiple options per click and run your own A/B test in YouTube Studio.",
+    icon: ListChecks,
+    title: "Pick only what you like",
+    body: "Concepts are free to generate. You only spend credits on the ones you choose to render as images. No wasted budget on dead ideas.",
   },
   {
     icon: Frame,
     title: "Native 1280×720",
-    body: "Every output is sized exactly to YouTube's spec. No manual cropping, no exports going off-center.",
+    body: "Every output is rendered at YouTube's exact thumbnail spec. No manual cropping, no off-center exports, no text getting clipped at the edges.",
   },
   {
-    icon: ShieldCheck,
-    title: "Brand-safe moderation",
-    body: "Every prompt runs through OpenAI's moderation API plus a public-figure blocklist before a credit is spent.",
+    icon: Pencil,
+    title: "AI edits",
+    body: 'Don\'t love a detail? "Change the background to red" or "make the title bigger" — edit any thumbnail with a prompt instead of re-rolling.',
   },
   {
     icon: InfinityIcon,
     title: "Credits never expire",
-    body: "Buy a pack once, use it whenever. No subscription, no monthly resets, no surprise renewal charges.",
+    body: "Buy a pack once, use it whenever. No subscription, no monthly resets, no surprise renewal charges. Failed renders refund automatically.",
   },
 ];
 
@@ -50,11 +50,11 @@ export function FeatureGrid() {
             Features
           </p>
           <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
-            Everything you need, nothing you don&apos;t.
+            Built for the creator workflow.
           </h2>
           <p className="mt-4 text-muted-foreground">
             Thumbly is laser-focused on one job: turning your video idea into
-            scroll-stopping thumbnails. We don&apos;t do retention curves,
+            click-tested thumbnails. We don&apos;t do retention curves,
             consultants, or shorts editors. Just thumbnails, done well.
           </p>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Upload, Sparkles, Plus } from "lucide-react";
@@ -8,6 +8,19 @@ import { STYLE_PRESETS } from "@/lib/presets";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const COUNT_OPTIONS = [8, 12, 20] as const;
+
+// Stage timings (ms from submit) and labels for the estimated progress bar.
+// Total expected duration ~60s for 12 concepts with 1–2 critic rounds.
+// Progress eases to 90% over EXPECTED_DURATION_MS and holds until the real
+// response arrives, then snaps to 100%.
+const EXPECTED_DURATION_MS = 65_000;
+const STAGES: { at: number; label: string }[] = [
+  { at: 0, label: "Uploading and warming up..." },
+  { at: 4_000, label: "Writing thumbnail concepts..." },
+  { at: 28_000, label: "Quality-checking against viral best practices..." },
+  { at: 42_000, label: "Refining weaker concepts..." },
+  { at: 56_000, label: "Final polish..." },
+];
 
 export interface CharacterOption {
   id: string;
@@ -29,7 +42,27 @@ export function GenerateForm({
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [stage, setStage] = useState<string>(STAGES[0].label);
   const [error, setError] = useState<string | null>(null);
+
+  // Drive the estimated progress animation while submitting.
+  useEffect(() => {
+    if (!submitting) return;
+    const start = Date.now();
+    setProgress(0);
+    setStage(STAGES[0].label);
+    const id = window.setInterval(() => {
+      const elapsed = Date.now() - start;
+      const ratio = Math.min(elapsed / EXPECTED_DURATION_MS, 1);
+      // Ease-out so it feels snappy early and slows near the cap.
+      const pct = 90 * (1 - Math.pow(1 - ratio, 2));
+      setProgress(pct);
+      const current = STAGES.filter((s) => elapsed >= s.at).pop();
+      if (current) setStage(current.label);
+    }, 200);
+    return () => window.clearInterval(id);
+  }, [submitting]);
 
   function pickCharacter(id: string | null) {
     setCharacterId(id);
@@ -92,12 +125,16 @@ export function GenerateForm({
           setError("Slow down — try again in a few minutes.");
         else setError(data.message ?? data.error ?? "Concept generation failed.");
         setSubmitting(false);
+        setProgress(0);
         return;
       }
+      setProgress(100);
+      setStage("Done — taking you to your concepts...");
       router.push(`/concepts/${data.conceptSetId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unexpected error.");
       setSubmitting(false);
+      setProgress(0);
     }
   }
 
@@ -259,26 +296,47 @@ export function GenerateForm({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/20 p-4">
-        <div className="text-sm">
-          <p className="font-medium">No credits used yet</p>
-          <p className="text-muted-foreground">
-            You&apos;ll pick which concepts to render on the next page.
+      {submitting || uploading ? (
+        <div className="rounded-2xl border border-accent/40 bg-accent/5 p-5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-semibold">
+              {uploading ? "Uploading reference..." : "Generating concepts"}
+            </p>
+            <p className="text-sm font-medium text-accent tabular-nums">
+              {Math.round(progress)}%
+            </p>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {uploading ? "Almost there..." : stage}
+          </p>
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-accent transition-all duration-500 ease-out"
+              style={{ width: `${uploading ? 5 : progress}%` }}
+            />
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Typical: 30–90 seconds. Keep this tab open — we&apos;ll redirect
+            you when concepts are ready.
           </p>
         </div>
-        <button
-          type="submit"
-          disabled={submitting || uploading}
-          className="inline-flex items-center gap-2 rounded-md bg-accent px-5 py-2.5 font-semibold text-accent-foreground transition hover:opacity-90 disabled:opacity-60"
-        >
-          <Sparkles size={18} />
-          {uploading
-            ? "Uploading..."
-            : submitting
-              ? "Generating concepts..."
-              : "Generate concepts"}
-        </button>
-      </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/20 p-4">
+          <div className="text-sm">
+            <p className="font-medium">No credits used yet</p>
+            <p className="text-muted-foreground">
+              You&apos;ll pick which concepts to render on the next page.
+            </p>
+          </div>
+          <button
+            type="submit"
+            className="inline-flex items-center gap-2 rounded-md bg-accent px-5 py-2.5 font-semibold text-accent-foreground transition hover:opacity-90"
+          >
+            <Sparkles size={18} />
+            Generate concepts
+          </button>
+        </div>
+      )}
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
     </form>

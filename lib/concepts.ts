@@ -358,7 +358,7 @@ Return a verdict for each concept (index 0..${concepts.length - 1}).`;
                 additionalProperties: false,
                 required: ["index", "pass", "reason"],
                 properties: {
-                  index: { type: "integer", minimum: 0 },
+                  index: { type: "integer" },
                   pass: { type: "boolean" },
                   reason: {
                     type: ["string", "null"],

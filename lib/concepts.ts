@@ -16,6 +16,14 @@ export interface GenerateConceptsInput {
   hasReference: boolean;
 }
 
+interface Verdict {
+  index: number;
+  pass: boolean;
+  reason: string | null;
+}
+
+const MAX_ROUNDS = 5;
+
 let cached: Anthropic | null = null;
 
 function anthropic(): Anthropic {
@@ -27,11 +35,9 @@ function anthropic(): Anthropic {
 }
 
 // =============================================================================
-// SYSTEM PROMPT — kept fully static so it can be cached by Anthropic prompt
-// caching (cache_control: ephemeral). Anything that varies per request goes in
-// the user message instead. Editing this string invalidates the cache.
+// GENERATOR SYSTEM PROMPT — static, cached.
 // =============================================================================
-const SYSTEM_PROMPT = `You are a senior YouTube thumbnail strategist. Given a video title, you produce a diverse set of thumbnail CONCEPTS optimized for click-through rate at small mobile sizes.
+const GENERATOR_SYSTEM_PROMPT = `You are a senior YouTube thumbnail strategist. Given a video title, you produce a diverse set of thumbnail CONCEPTS optimized for click-through rate at small mobile sizes.
 
 # What makes a YouTube thumbnail click
 
@@ -105,12 +111,55 @@ If no reference photo is provided, do not invent a specific person. Use generic 
 
 If a style preset is given (Gaming, Vlog, Podcast, Tutorial, Reaction, Challenge, Tech), weight your concepts toward that aesthetic — but vary across the concept patterns above. Don't render N versions of the same preset.`;
 
-export async function generateConcepts(
-  input: GenerateConceptsInput,
-): Promise<Concept[]> {
-  const env = serverEnv();
-  const model = env.ANTHROPIC_CONCEPT_MODEL;
+// =============================================================================
+// CRITIC SYSTEM PROMPT — static, cached. Evaluates each concept against 10
+// pass criteria; any failure flips pass=false with a one-sentence reason.
+// =============================================================================
+const CRITIC_SYSTEM_PROMPT = `You are a senior YouTube thumbnail critic. You evaluate AI-generated thumbnail concepts against high-CTR best practices and decide which ones are good enough to ship and which need to be redone.
 
+You are STRICT. If a concept is even slightly off, fail it — the regeneration step is cheap and quality matters more than throughput.
+
+# Pass criteria
+
+A concept passes ONLY if ALL of the following apply:
+
+1. **Specific focal subject** — names who or what is in frame (a person, an object, a scene), not just a vague "subject".
+2. **Composition described** — camera angle, layout (close-up / wide / split-screen / grid / etc.), and where each major element sits in frame.
+3. **Overlay-text directive present** — 2–5 words in double quotes, with typography specs that include ALL of: weight (heaviest/black), case (all-caps default), thick outline, drop shadow, color treatment (white base + one or two highlighted words in yellow/red).
+4. **Color palette concrete** — names colors or describes contrast specifically; not just "vibrant" or "high contrast" alone.
+5. **Curiosity / emotion hook tied to the title** — there's an obvious reason the viewer would click. Implies a question, transformation, stake, or surprise.
+6. **One of the named concept patterns** — explicitly uses one of: SHOCKED FACE, BIG NUMBER, SPLIT SCREEN, POV/FIRST PERSON, BIG OBJECT, GIANT TEXT, ZOOM IN, DRAMATIC LIGHTING, COMPARISON/RANK, CHAOS, AESTHETIC GRID, ARROW + CIRCLE.
+7. **Not vague** — no "interesting composition", "eye-catching design", "compelling visual", "striking", "dynamic". Every claim must be backed by what's actually in frame.
+8. **Not a duplicate of another concept in the same set** — distinct pattern OR distinct focal subject OR distinct palette. Two SHOCKED FACE concepts with the same expression on the same character with similar colors are duplicates.
+9. **No real public figures named** — no "MrBeast-style", "PewDiePie", "Trump", etc.
+10. **Format-correct** — ends with the required "1280x720, 16:9 YouTube thumbnail, sharp focus, high contrast, mobile-readable typography." footer.
+
+# Output rules
+
+For each concept (by its array index 0..N-1), return:
+- \`index\`: the array index in the input
+- \`pass\`: true if and only if ALL 10 criteria are satisfied
+- \`reason\`: null if pass=true; otherwise a single short sentence (max 20 words) naming the specific failure(s)
+
+Reason examples:
+- "vague composition — no focal subject named"
+- "no overlay-text directive"
+- "missing typography weight/outline/shadow specs"
+- "duplicate of concept #3 (same SHOCKED FACE on same subject with similar palette)"
+- "missing 1280x720 footer"
+
+Be objective. If unsure, fail it.`;
+
+// =============================================================================
+// Builder for the user message — shared by initial generation and the post-
+// critique regeneration. Reuses the same shape so the model interprets both
+// consistently.
+// =============================================================================
+function buildUserMessage(
+  input: GenerateConceptsInput,
+  count: number,
+  failuresContext: string | null = null,
+): string {
   const preset = getPreset(input.stylePresetId);
   const presetLine =
     preset.id === "none"
@@ -121,16 +170,59 @@ export async function generateConcepts(
     ? "Reference photo: Yes. The creator has uploaded a reference photo of themselves; write each prompt to feature 'the creator' as the central subject."
     : "Reference photo: No. Do not feature any specific real person.";
 
-  const userMessage = `Title: ${input.title}
+  const base = `Title: ${input.title}
 ${presetLine}
 ${referenceLine}
-Generate exactly ${input.count} concepts.`;
+Generate exactly ${count} concepts.`;
 
+  if (failuresContext) {
+    return `${base}
+
+These are replacement concepts. The previous attempts at these slots were rejected by a quality critic. Each replacement MUST address the corresponding critique:
+
+${failuresContext}
+
+Return exactly ${count} new concepts, in the SAME ORDER as the failures listed above.`;
+  }
+
+  return base;
+}
+
+// =============================================================================
+// Round 1: initial generation
+// =============================================================================
+async function generateInitial(
+  input: GenerateConceptsInput,
+): Promise<Concept[]> {
+  return callGenerator(input, input.count, null);
+}
+
+// =============================================================================
+// Replacement generation: feed back the critic's reasons.
+// =============================================================================
+async function regenerate(
+  input: GenerateConceptsInput,
+  failures: { concept: Concept; reason: string }[],
+): Promise<Concept[]> {
+  const context = failures
+    .map(
+      (f, i) =>
+        `${i + 1}. Reason: ${f.reason}\n   Original prompt: ${f.concept.prompt}`,
+    )
+    .join("\n\n");
+  return callGenerator(input, failures.length, context);
+}
+
+async function callGenerator(
+  input: GenerateConceptsInput,
+  count: number,
+  failuresContext: string | null,
+): Promise<Concept[]> {
+  const env = serverEnv();
+  const model = env.ANTHROPIC_CONCEPT_MODEL;
   const client = anthropic();
   type StreamParams = Parameters<typeof client.messages.stream>[0];
 
-  // Anthropic structured outputs don't support array minItems/maxItems > 1, so
-  // we enforce the count via the user message instruction + post-parse check.
   const params: StreamParams = {
     model,
     max_tokens: 32000,
@@ -176,20 +268,18 @@ Generate exactly ${input.count} concepts.`;
     system: [
       {
         type: "text",
-        text: SYSTEM_PROMPT,
+        text: GENERATOR_SYSTEM_PROMPT,
         cache_control: { type: "ephemeral" },
       },
     ],
-    messages: [{ role: "user", content: userMessage }],
+    messages: [
+      { role: "user", content: buildUserMessage(input, count, failuresContext) },
+    ],
   } as unknown as StreamParams;
 
-  // Streaming with .finalMessage() avoids the SDK's per-chunk read timeout on
-  // long Opus runs (adaptive thinking + 20 concepts can exceed 30s).
   const stream = client.messages.stream(params);
   const response = await stream.finalMessage();
 
-  // Schema is enforced server-side via output_config.format — the text block
-  // contains JSON matching the schema. Skip thinking blocks.
   const textBlock = (
     response as unknown as { content: Array<{ type: string; text?: string }> }
   ).content.find((b) => b.type === "text" && typeof b.text === "string");
@@ -205,7 +295,7 @@ Generate exactly ${input.count} concepts.`;
     throw new Error("concept_invalid_json");
   }
 
-  if (!Array.isArray(parsed.concepts) || parsed.concepts.length !== input.count) {
+  if (!Array.isArray(parsed.concepts) || parsed.concepts.length !== count) {
     throw new Error("concept_wrong_count");
   }
 
@@ -216,4 +306,172 @@ Generate exactly ${input.count} concepts.`;
     }
     return { label: obj.label, badge: obj.badge, prompt: obj.prompt };
   });
+}
+
+// =============================================================================
+// Critic: returns pass/fail + reason for each concept.
+// =============================================================================
+async function proofread(
+  concepts: Concept[],
+  input: GenerateConceptsInput,
+): Promise<Verdict[]> {
+  const env = serverEnv();
+  const model = env.ANTHROPIC_CONCEPT_MODEL;
+  const client = anthropic();
+  type StreamParams = Parameters<typeof client.messages.stream>[0];
+
+  const conceptsForReview = concepts
+    .map(
+      (c, i) =>
+        `Concept #${i}: ${c.label} [${c.badge}]
+Prompt: ${c.prompt}`,
+    )
+    .join("\n\n---\n\n");
+
+  const userMessage = `Video title (for context — concepts must hook this): "${input.title}"
+Style preset hint: ${getPreset(input.stylePresetId).label}
+Number of concepts to review: ${concepts.length}
+
+Concepts to evaluate:
+
+${conceptsForReview}
+
+Return a verdict for each concept (index 0..${concepts.length - 1}).`;
+
+  const params: StreamParams = {
+    model,
+    max_tokens: 16000,
+    thinking: { type: "adaptive" },
+    output_config: {
+      effort: "high",
+      format: {
+        type: "json_schema",
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          required: ["verdicts"],
+          properties: {
+            verdicts: {
+              type: "array",
+              items: {
+                type: "object",
+                additionalProperties: false,
+                required: ["index", "pass", "reason"],
+                properties: {
+                  index: { type: "integer", minimum: 0 },
+                  pass: { type: "boolean" },
+                  reason: {
+                    type: ["string", "null"],
+                    description:
+                      "null if pass=true; otherwise <=20 words naming the specific failure(s)",
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    system: [
+      {
+        type: "text",
+        text: CRITIC_SYSTEM_PROMPT,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    messages: [{ role: "user", content: userMessage }],
+  } as unknown as StreamParams;
+
+  const stream = client.messages.stream(params);
+  const response = await stream.finalMessage();
+
+  const textBlock = (
+    response as unknown as { content: Array<{ type: string; text?: string }> }
+  ).content.find((b) => b.type === "text" && typeof b.text === "string");
+
+  if (!textBlock || !textBlock.text) {
+    throw new Error("critic_no_text_response");
+  }
+
+  let parsed: { verdicts?: unknown };
+  try {
+    parsed = JSON.parse(textBlock.text);
+  } catch {
+    throw new Error("critic_invalid_json");
+  }
+
+  if (!Array.isArray(parsed.verdicts)) {
+    throw new Error("critic_no_verdicts");
+  }
+
+  // Build a map by index so we can tolerate out-of-order responses.
+  const byIndex = new Map<number, Verdict>();
+  for (const v of parsed.verdicts) {
+    const obj = v as Partial<Verdict>;
+    if (typeof obj.index !== "number" || typeof obj.pass !== "boolean") {
+      continue;
+    }
+    byIndex.set(obj.index, {
+      index: obj.index,
+      pass: obj.pass,
+      reason: obj.pass ? null : (obj.reason ?? "unspecified failure"),
+    });
+  }
+
+  // Fill missing indices as pass (defensive — shouldn't happen with strict
+  // structured outputs but better than throwing).
+  return concepts.map(
+    (_, i) => byIndex.get(i) ?? { index: i, pass: true, reason: null },
+  );
+}
+
+// =============================================================================
+// Orchestrator. Loops up to MAX_ROUNDS times, regenerating any concept that
+// fails the critic with the failure reason fed back as guidance.
+// =============================================================================
+export async function generateConcepts(
+  input: GenerateConceptsInput,
+): Promise<Concept[]> {
+  let concepts = await generateInitial(input);
+
+  for (let round = 1; round <= MAX_ROUNDS; round++) {
+    const verdicts = await proofread(concepts, input);
+    const failedIndices: number[] = [];
+    const failedConcepts: { concept: Concept; reason: string }[] = [];
+
+    for (const v of verdicts) {
+      if (!v.pass) {
+        failedIndices.push(v.index);
+        failedConcepts.push({
+          concept: concepts[v.index],
+          reason: v.reason ?? "unspecified failure",
+        });
+      }
+    }
+
+    const passCount = concepts.length - failedIndices.length;
+    console.info(
+      `[concepts] round ${round}: ${passCount}/${concepts.length} passed critic` +
+        (failedIndices.length > 0
+          ? ` — regenerating ${failedIndices.length} (reasons: ${failedConcepts.map((f) => f.reason).join(" | ")})`
+          : ""),
+    );
+
+    if (failedIndices.length === 0) break;
+    if (round === MAX_ROUNDS) {
+      console.warn(
+        `[concepts] max rounds (${MAX_ROUNDS}) reached with ${failedIndices.length} concepts still failing — shipping anyway`,
+      );
+      break;
+    }
+
+    const replacements = await regenerate(input, failedConcepts);
+    failedIndices.forEach((origIdx, i) => {
+      if (replacements[i]) {
+        concepts[origIdx] = replacements[i];
+      }
+    });
+  }
+
+  return concepts;
 }

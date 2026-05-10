@@ -7,9 +7,12 @@ import { generationRateLimit } from "@/lib/ratelimit";
 import { moderatePrompt } from "@/lib/moderation";
 import { generateImages } from "@/lib/openai";
 import { buildPrompt } from "@/lib/presets";
+import { proofreadImage } from "@/lib/image-critic";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 300;
+
+const MAX_IMAGE_PROOFREAD_ROUNDS = 3;
 
 const schema = z
   .object({
@@ -248,16 +251,98 @@ export async function POST(request: NextRequest) {
     const finalPrompt = conceptId
       ? effectivePrompt
       : buildPrompt(effectivePrompt, effectiveStylePreset ?? undefined);
-    const buffers = await generateImages({
+    const initialBuffers = await generateImages({
       prompt: finalPrompt,
       variations: parsed.data.variations,
       referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
     });
 
+    // 7b. Vision proofread loop.
+    //    Skip for user-driven edits (parentGenerationId): in that flow the user
+    //    explicitly asked to change one specific thing and we trust their
+    //    intent. Auto-proofreading would revert their edits.
+    //    For initial concept-driven and one-off reference renders: run the
+    //    critic; if it fails, edit with the critic's edit_prompt as the
+    //    instruction and the current image as the primary reference.
+    const skipProofread = Boolean(parsed.data.parentGenerationId);
+    const finalBuffers: Buffer[] = [];
+    for (let i = 0; i < initialBuffers.length; i++) {
+      let current = initialBuffers[i];
+
+      if (!skipProofread) {
+        for (let round = 1; round <= MAX_IMAGE_PROOFREAD_ROUNDS; round++) {
+          let verdict;
+          try {
+            verdict = await proofreadImage({
+              imageBuffer: current,
+              imageMimeType: "image/png",
+              conceptPrompt: finalPrompt,
+            });
+          } catch (err) {
+            console.warn(
+              `[image-critic] variation ${i} round ${round}: critic call failed, shipping current — ${
+                err instanceof Error ? err.message : "unknown"
+              }`,
+            );
+            break;
+          }
+
+          console.info(
+            `[image-critic] variation ${i} round ${round}: pass=${verdict.pass}` +
+              (verdict.pass ? "" : ` — ${verdict.reason}`),
+          );
+
+          if (verdict.pass) break;
+          if (round === MAX_IMAGE_PROOFREAD_ROUNDS) {
+            console.warn(
+              `[image-critic] variation ${i}: max rounds (${MAX_IMAGE_PROOFREAD_ROUNDS}) hit — shipping last edited version`,
+            );
+            break;
+          }
+          if (!verdict.editPrompt) {
+            console.warn(
+              `[image-critic] variation ${i}: critic failed without an editPrompt — shipping current`,
+            );
+            break;
+          }
+
+          // Edit: pass the current image as the primary reference plus the
+          // original character/reference images if any (preserves face fidelity).
+          try {
+            const edited = await generateImages({
+              prompt: verdict.editPrompt,
+              variations: 1,
+              referenceImages: [
+                { buffer: current, contentType: "image/png" },
+                ...referenceImages,
+              ],
+            });
+            if (edited[0]) {
+              current = edited[0];
+            } else {
+              console.warn(
+                `[image-critic] variation ${i} round ${round}: edit returned no buffer — shipping prior`,
+              );
+              break;
+            }
+          } catch (err) {
+            console.warn(
+              `[image-critic] variation ${i} round ${round}: edit call failed, shipping prior — ${
+                err instanceof Error ? err.message : "unknown"
+              }`,
+            );
+            break;
+          }
+        }
+      }
+
+      finalBuffers.push(current);
+    }
+
     // 8. Resize to 1280x720 and upload
     const outputPaths: string[] = [];
-    for (let i = 0; i < buffers.length; i++) {
-      const resized = await sharp(buffers[i])
+    for (let i = 0; i < finalBuffers.length; i++) {
+      const resized = await sharp(finalBuffers[i])
         .resize(1280, 720, { fit: "cover" })
         .png({ quality: 90 })
         .toBuffer();

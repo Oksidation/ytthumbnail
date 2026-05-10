@@ -11,6 +11,7 @@ const coreSchema = z.object({
   // Concept generation now uses Claude — kept for backwards-compat env files only.
   OPENAI_CONCEPT_MODEL: z.string().default("gpt-5-mini"),
   ANTHROPIC_CONCEPT_MODEL: z.string().default("claude-opus-4-6"),
+  ANTHROPIC_VISION_MODEL: z.string().default("claude-opus-4-7"),
 });
 
 // Optional — features fail per-route until configured.
